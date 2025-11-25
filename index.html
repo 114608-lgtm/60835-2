@@ -3,116 +3,578 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>幸運抽籤程式</title>
+    <title>銀河霓虹射擊</title>
+    <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- 引入 Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <!-- 引入 Tone.js 用於音效 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.min.js"></script>
     <style>
         body {
-            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden;
+            background-color: #0a0a1a;
         }
-        .confetti {
-            position: absolute;
-            width: 10px;
-            height: 10px;
-            background-color: #f00;
-            opacity: 0.7;
-            animation: fall 3s linear forwards;
+        canvas {
+            background: linear-gradient(180deg, #0a0a1a 0%, #1a1a3a 100%);
+            cursor: none;
+            display: block;
         }
-        @keyframes fall {
-            to {
-                transform: translateY(100vh) rotate(720deg);
-                opacity: 0;
-            }
+        /* 自定義霓虹光暈效果 */
+        .neon-shadow {
+            text-shadow:
+                0 0 5px #fff,
+                0 0 10px #fff,
+                0 0 20px #0ff,
+                0 0 30px #0ff,
+                0 0 40px #0ff;
+        }
+        .neon-shadow-red {
+            text-shadow:
+                0 0 5px #fff,
+                0 0 10px #fff,
+                0 0 20px #f0f,
+                0 0 30px #f0f,
+                0 0 40px #f0f;
+        }
+        .btn-neon {
+            transition: all 0.3s ease;
+            box-shadow: 0 0 5px #0ff, 0 0 15px #0ff;
+        }
+        .btn-neon:hover {
+            box-shadow: 0 0 10px #0ff, 0 0 30px #0ff, 0 0 60px #0ff;
         }
     </style>
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 flex items-center justify-center min-h-screen p-4">
-    <div class="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 md:p-8">
-        <div class="text-center">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white">幸運抽籤程式</h1>
-            <p class="mt-2 text-gray-600 dark:text-gray-400">在下方輸入所有選項（一行一個），然後點擊按鈕抽出幸運兒！</p>
-        </div>
+<body class="flex items-center justify-center h-screen bg-gray-900 text-white">
 
-        <div class="mt-8">
-            <label for="items" class="block text-sm font-medium text-gray-700 dark:text-gray-300">抽籤選項</label>
-            <textarea id="items" rows="8" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-gray-50 dark:bg-gray-700 dark:text-white p-4" placeholder="例如：&#10;張三&#10;李四&#10;王五&#10;..."></textarea>
+<!-- 遊戲容器 -->
+<div id="game-container" class="relative shadow-2xl shadow-cyan-400/50 rounded-2xl overflow-hidden border-2 border-cyan-400">
+    <canvas id="gameCanvas"></canvas>
+    
+    <!-- 遊戲資訊面板 -->
+    <div id="info-panel" class="absolute top-0 left-0 w-full p-4 flex justify-between items-center text-lg bg-black bg-opacity-30">
+        <div>
+            <span class="font-bold">分數:</span>
+            <span id="score" class="ml-2 neon-shadow">0</span>
         </div>
-
-        <div class="mt-6 flex flex-col items-center">
-            <button id="drawButton" class="w-full md:w-auto px-8 py-3 text-lg font-semibold text-white bg-indigo-600 rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-transform transform hover:scale-105 disabled:bg-indigo-400 disabled:cursor-not-allowed">
-                開始抽籤！
-            </button>
-        </div>
-
-        <div id="result-container" class="mt-8 text-center min-h-[100px] flex items-center justify-center">
-             <p id="result" class="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white transition-opacity duration-500 opacity-0"></p>
+        <div>
+            <span class="font-bold">生命:</span>
+            <span id="lives" class="ml-2 text-red-500 neon-shadow-red">❤️❤️❤️</span>
         </div>
     </div>
+    
+    <!-- 遊戲開始/結束畫面 -->
+    <div id="modal-screen" class="absolute inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center text-center p-8 backdrop-blur-sm">
+        <h1 id="modal-title" class="text-6xl font-bold neon-shadow mb-4">銀河霓虹射擊</h1>
+        <p id="modal-score" class="text-3xl mb-8 hidden">最終得分: <span id="final-score">0</span></p>
+        <button id="start-button" class="px-8 py-4 text-2xl font-bold bg-cyan-500 rounded-lg btn-neon">
+            開始遊戲
+        </button>
+    </div>
+</div>
 
-    <script>
-        const drawButton = document.getElementById('drawButton');
-        const itemsTextarea = document.getElementById('items');
-        const resultParagraph = document.getElementById('result');
-        const resultContainer = document.getElementById('result-container');
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const livesEl = document.getElementById('lives');
+        const modalScreen = document.getElementById('modal-screen');
+        const modalTitle = document.getElementById('modal-title');
+        const modalScore = document.getElementById('modal-score');
+        const finalScoreEl = document.getElementById('final-score');
+        const startButton = document.getElementById('start-button');
 
-        let intervalId = null;
+        // 設置畫布大小
+        let canvasWidth = window.innerWidth > 800 ? 800 : window.innerWidth * 0.95;
+        let canvasHeight = window.innerHeight > 600 ? 600 : window.innerHeight * 0.9;
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
 
-        drawButton.addEventListener('click', () => {
-            const items = itemsTextarea.value.split('\n').map(item => item.trim()).filter(item => item !== '');
+        let score, lives, gameOver, animationId, frameCount;
+        let player, bullets, enemies, particles, stars, powerUps;
+        
+        // --- 音效設定 ---
+        let soundsEnabled = false;
+        let synth, explosionSynth, powerUpSynth;
 
-            if (items.length < 2) {
-                resultParagraph.textContent = '請至少輸入兩個有效選項！';
-                resultParagraph.classList.remove('text-indigo-500', 'dark:text-indigo-400');
-                resultParagraph.classList.add('text-red-500', 'dark:text-red-400');
-                resultParagraph.style.opacity = '1';
-                return;
+        // --- 物件類別 ---
+        // 玩家
+        class Player {
+            constructor() {
+                this.width = 40;
+                this.height = 40;
+                this.x = (canvas.width - this.width) / 2;
+                this.y = canvas.height - this.height - 20;
+                this.speed = 10;
+                this.shielded = false;
+                this.rapidFire = false;
+                this.rapidFireTimer = 0;
+                this.shootCooldown = 0;
             }
 
-            // 清除之前的結果和樣式
-            resultParagraph.textContent = '';
-            resultParagraph.classList.remove('text-red-500', 'dark:text-red-400');
-            resultParagraph.classList.add('text-indigo-500', 'dark:text-indigo-400');
-            resultParagraph.style.opacity = '1';
-            drawButton.disabled = true;
-            
-            let shuffleCount = 0;
-            intervalId = setInterval(() => {
-                shuffleCount++;
-                const randomIndex = Math.floor(Math.random() * items.length);
-                resultParagraph.textContent = items[randomIndex];
+            draw() {
+                ctx.save();
+                ctx.shadowColor = this.shielded ? '#fff' : '#0ff';
+                ctx.shadowBlur = 20;
+
+                const x = this.x;
+                const y = this.y;
+                const w = this.width;
+                const h = this.height;
+
+                // 引擎火焰 (動畫效果)
+                const flameHeight = h * (0.4 + Math.sin(frameCount * 0.5) * 0.1);
+                // 讓火焰顏色更生動
+                ctx.fillStyle = `rgba(255, ${150 + Math.sin(frameCount * 0.5) * 50}, 0, 0.8)`;
+                ctx.beginPath();
+                ctx.moveTo(x + w * 0.4, y + h * 0.95);
+                ctx.lineTo(x + w * 0.6, y + h * 0.95);
+                ctx.lineTo(x + w * 0.5, y + h * 0.95 + flameHeight);
+                ctx.closePath();
+                ctx.fill();
+
+
+                // 飛船主體
+                const bodyGradient = ctx.createLinearGradient(x, y, x, y + h);
+                bodyGradient.addColorStop(0, '#ffffff');
+                bodyGradient.addColorStop(1, '#00ffff');
+                ctx.fillStyle = bodyGradient;
+
+                ctx.beginPath();
+                ctx.moveTo(x + w / 2, y); // 頂點
+                ctx.lineTo(x, y + h * 0.85); // 左下
+                ctx.quadraticCurveTo(x + w / 2, y + h * 1.1, x + w, y + h * 0.85); // 底部曲線
+                ctx.lineTo(x + w, y + h * 0.85); // 右下
+                ctx.closePath();
+                ctx.fill();
+
+                // 駕駛艙
+                ctx.fillStyle = '#0a0a1a';
+                ctx.beginPath();
+                ctx.arc(x + w / 2, y + h * 0.4, w * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
                 
-                // 動畫效果結束
-                if (shuffleCount > 20) { // 快速閃爍約 2 秒
-                    clearInterval(intervalId);
-                    finalizeWinner(items);
+                ctx.restore();
+
+                // 防護罩 (保持在最外層繪製，不受 save/restore 影響)
+                if (this.shielded) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)';
+                    ctx.lineWidth = 4;
+                    ctx.shadowColor = '#fff';
+                    ctx.shadowBlur = 30;
+                    ctx.stroke();
+                    ctx.restore();
                 }
-            }, 100);
-        });
+            }
 
-        function finalizeWinner(items) {
-            const winnerIndex = Math.floor(Math.random() * items.length);
-            const winner = items[winnerIndex];
-            
-            resultParagraph.textContent = `🎉 中獎的是： ${winner} 🎉`;
-            drawButton.disabled = false;
-            createConfetti();
-        }
+            update() {
+                this.draw();
+                if (this.shootCooldown > 0) this.shootCooldown--;
+                if (this.rapidFire) {
+                    this.rapidFireTimer--;
+                    if (this.rapidFireTimer <= 0) {
+                        this.rapidFire = false;
+                    }
+                }
+            }
 
-        function createConfetti() {
-            const confettiContainer = document.body;
-            for (let i = 0; i < 50; i++) {
-                const confetti = document.createElement('div');
-                confetti.classList.add('confetti');
-                confetti.style.left = Math.random() * 100 + 'vw';
-                confetti.style.animationDelay = Math.random() * 2 + 's';
-                confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
-                confettiContainer.appendChild(confetti);
-
-                setTimeout(() => {
-                    confetti.remove();
-                }, 3000);
+            shoot() {
+                const fireRate = this.rapidFire ? 5 : 15;
+                if (this.shootCooldown === 0) {
+                    bullets.push(new Bullet(this.x + this.width / 2, this.y));
+                    this.shootCooldown = fireRate;
+                     if (soundsEnabled) synth.triggerAttackRelease('E5', '8n');
+                }
             }
         }
-    </script>
+
+        // 子彈
+        class Bullet {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 5;
+                this.color = '#0ff';
+                this.velocity = { x: 0, y: -8 };
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 10;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+            update() {
+                this.y += this.velocity.y;
+                this.draw();
+            }
+        }
+        
+        // 敵人
+        class Enemy {
+            constructor(x, y, radius, color, velocity) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                this.velocity = velocity;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 15;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+            update() {
+                this.x += this.velocity.x;
+                this.y += this.velocity.y;
+                this.draw();
+            }
+        }
+        
+        // 爆炸粒子
+        class Particle {
+            constructor(x, y, radius, color, velocity) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                this.velocity = velocity;
+                this.alpha = 1;
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.restore();
+            }
+            update() {
+                this.velocity.x *= 0.99;
+                this.velocity.y *= 0.99;
+                this.x += this.velocity.x;
+                this.y += this.velocity.y;
+                this.alpha -= 0.02;
+                this.draw();
+            }
+        }
+
+        // 背景星星
+        class Star {
+            constructor(x, y, radius, color) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+            update() {
+                this.y += 0.5;
+                if (this.y - this.radius > canvas.height) {
+                    this.y = -this.radius;
+                    this.x = Math.random() * canvas.width;
+                }
+                this.draw();
+            }
+        }
+        
+        // 道具
+        class PowerUp {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.radius = 15;
+                this.type = type;
+                this.velocity = {x: 0, y: 2};
+            }
+            draw() {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                const color = this.type === 'shield' ? '#00ff00' : '#ffff00';
+                ctx.fillStyle = color;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 20;
+                ctx.fill();
+                ctx.font = '20px Orbitron';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#000';
+                ctx.shadowBlur = 0;
+                const text = this.type === 'shield' ? 'S' : 'F';
+                ctx.fillText(text, this.x, this.y);
+                ctx.restore();
+            }
+            update() {
+                this.y += this.velocity.y;
+                this.draw();
+            }
+        }
+
+        // --- 遊戲邏輯 ---
+        function init() {
+            score = 0;
+            lives = 3;
+            gameOver = false;
+            frameCount = 0;
+            
+            player = new Player();
+            bullets = [];
+            enemies = [];
+            particles = [];
+            powerUps = [];
+            stars = [];
+            for (let i = 0; i < 100; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const radius = Math.random() * 1.5;
+                stars.push(new Star(x, y, radius, 'white'));
+            }
+            
+            updateUI();
+        }
+
+        function spawnEnemies() {
+            const difficulty = 100 - Math.floor(score / 200);
+            const spawnRate = difficulty < 20 ? 20 : difficulty;
+            
+            if (frameCount % spawnRate === 0) {
+                const radius = Math.random() * 20 + 10;
+                const x = Math.random() * (canvas.width - radius * 2) + radius;
+                const y = -radius;
+                const angle = Math.atan2(player.y - y, player.x - x);
+                const speed = 1 + score / 1000;
+                const velocity = {
+                    x: Math.cos(angle) * (Math.random() * 0.5 + 0.2), // 敵人移動慢一點
+                    y: Math.sin(angle) * speed
+                };
+                const color = `hsl(${Math.random() * 360}, 50%, 50%)`;
+                enemies.push(new Enemy(x, y, radius, color, velocity));
+            }
+        }
+        
+        function spawnPowerUps() {
+            if (frameCount % 800 === 0 && frameCount > 0) {
+                 const x = Math.random() * (canvas.width - 30) + 15;
+                 const y = -15;
+                 const type = Math.random() > 0.5 ? 'shield' : 'rapidFire';
+                 powerUps.push(new PowerUp(x, y, type));
+            }
+        }
+
+        function animate() {
+            if (gameOver) return;
+            animationId = requestAnimationFrame(animate);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 繪製背景
+            ctx.fillStyle = '#0a0a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            stars.forEach(star => star.update());
+
+            // 更新玩家
+            player.update();
+            player.shoot();
+
+            // 更新物件
+            handleUpdates(particles, p => p.alpha <= 0);
+            handleUpdates(bullets, b => b.y + b.radius < 0);
+            handleUpdates(enemies);
+            handleUpdates(powerUps, p => p.y - p.radius > canvas.height);
+            
+            // 處理碰撞
+            handleCollisions();
+
+            // 生成
+            spawnEnemies();
+            spawnPowerUps();
+
+            frameCount++;
+        }
+        
+        function handleUpdates(array, removalCondition) {
+            for (let i = array.length - 1; i >= 0; i--) {
+                array[i].update();
+                if (removalCondition && removalCondition(array[i])) {
+                    array.splice(i, 1);
+                }
+            }
+        }
+        
+        function handleCollisions() {
+            // 子彈 vs 敵人
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                for (let j = bullets.length - 1; j >= 0; j--) {
+                    const bullet = bullets[j];
+                    const dist = Math.hypot(bullet.x - enemy.x, bullet.y - enemy.y);
+                    if (dist - enemy.radius - bullet.radius < 1) {
+                        createExplosion(enemy);
+                        enemies.splice(i, 1);
+                        bullets.splice(j, 1);
+                        score += 10;
+                        updateUI();
+                        break;
+                    }
+                }
+            }
+            
+            // 玩家 vs 敵人
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                const dist = Math.hypot(player.x + player.width/2 - enemy.x, player.y + player.height/2 - enemy.y);
+                if (dist - enemy.radius - player.width/2 < 1) {
+                    if (player.shielded) {
+                        player.shielded = false;
+                        createExplosion(enemy);
+                        enemies.splice(i, 1);
+                    } else {
+                        playerHit();
+                    }
+                    break;
+                }
+            }
+            
+            // 玩家 vs 道具
+            for (let i = powerUps.length - 1; i >= 0; i--) {
+                const powerUp = powerUps[i];
+                const dist = Math.hypot(player.x + player.width/2 - powerUp.x, player.y + player.height/2 - powerUp.y);
+                if (dist - powerUp.radius - player.width/2 < 1) {
+                    activatePowerUp(powerUp.type);
+                    powerUps.splice(i, 1);
+                }
+            }
+        }
+        
+        function activatePowerUp(type) {
+             if (soundsEnabled) powerUpSynth.triggerAttackRelease('G5', '0.5');
+            if (type === 'shield') {
+                player.shielded = true;
+                setTimeout(() => player.shielded = false, 5000); // 護盾持續5秒
+            } else if (type === 'rapidFire') {
+                player.rapidFire = true;
+                player.rapidFireTimer = 300; // 快速射擊持續300幀 (約5秒)
+            }
+        }
+
+        function createExplosion(enemy) {
+            if (soundsEnabled) explosionSynth.triggerAttackRelease('C1', '0.5');
+            for (let i = 0; i < enemy.radius * 1.5; i++) {
+                const radius = Math.random() * 3;
+                const velocity = {
+                    x: (Math.random() - 0.5) * (Math.random() * 8),
+                    y: (Math.random() - 0.5) * (Math.random() * 8)
+                };
+                particles.push(new Particle(enemy.x, enemy.y, radius, enemy.color, velocity));
+            }
+        }
+        
+        function playerHit() {
+            createExplosion({x: player.x + player.width/2, y: player.y + player.height/2, radius: 20, color: '#0ff' });
+            lives--;
+            updateUI();
+            if (lives <= 0) {
+                endGame();
+            } else {
+                // 短暫無敵並重置位置
+                player.x = (canvas.width - player.width) / 2;
+                player.y = canvas.height - player.height - 20;
+                player.shielded = true;
+                setTimeout(() => player.shielded = false, 2000);
+            }
+        }
+
+        function updateUI() {
+            scoreEl.textContent = score;
+            livesEl.textContent = '❤️'.repeat(lives);
+        }
+        
+        function startGame() {
+            // 第一次點擊時，初始化音效
+            if (!soundsEnabled) {
+                if (typeof window.Tone !== 'undefined') {
+                    try {
+                        Tone.start();
+                        synth = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.1 } }).toDestination();
+                        explosionSynth = new Tone.MetalSynth({ frequency: 50, envelope: { attack: 0.001, decay: 0.4, release: 0.2 }, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5 }).toDestination();
+                        powerUpSynth = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.5 } }).toDestination();
+                        soundsEnabled = true;
+                    } catch (e) {
+                        console.error("Could not initialize audio context:", e);
+                        soundsEnabled = false;
+                    }
+                } else {
+                    console.warn("Tone.js library not loaded. Sound will be disabled.");
+                    soundsEnabled = false;
+                }
+            }
+            init();
+            modalScreen.style.display = 'none';
+            animate();
+        }
+
+        function endGame() {
+            gameOver = true;
+            cancelAnimationFrame(animationId);
+            modalTitle.textContent = '遊戲結束';
+            finalScoreEl.textContent = score;
+            modalScore.style.display = 'block';
+            startButton.textContent = '重新開始';
+            modalScreen.style.display = 'flex';
+        }
+
+        // --- 事件監聽 ---
+        function movePlayer(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            if (clientX) {
+                player.x = clientX - rect.left - player.width / 2;
+                if (player.x < 0) player.x = 0;
+                if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+            }
+        }
+        
+        canvas.addEventListener('mousemove', movePlayer);
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            movePlayer(e);
+        }, { passive: false });
+
+        startButton.addEventListener('click', startGame);
+        
+        window.addEventListener('resize', () => {
+            canvasWidth = window.innerWidth > 800 ? 800 : window.innerWidth * 0.95;
+            canvasHeight = window.innerHeight > 600 ? 600 : window.innerHeight * 0.9;
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            init(); // 重新調整大小後重置遊戲以避免物件位置錯亂
+            endGame(); // 顯示開始畫面
+        });
+    });
+</script>
+
 </body>
 </html>
