@@ -161,6 +161,7 @@
     // 音效 (Tone.js)
     let synth, metalSynth, noiseSynth;
     let audioInitialized = false;
+    let lastSoundTime = 0; // 防止音效重疊造成錯誤
 
     // 畫面震動變數
     let shakeIntensity = 0;
@@ -199,6 +200,24 @@
         }).toDestination();
 
         audioInitialized = true;
+    }
+
+    // 安全播放爆炸音效 (防止 Start time error)
+    function playExplosionSound(note = "16n", duration = 0.1) {
+        if (!audioInitialized) return;
+        
+        const now = Tone.now();
+        // 確保兩次音效之間有微小間隔，避免衝突
+        if (now > lastSoundTime + 0.05) {
+            // 使用 Math.max 確保時間嚴格遞增
+            const triggerTime = Math.max(now, lastSoundTime + 0.05);
+            try {
+                metalSynth.triggerAttackRelease(note, duration, triggerTime);
+                lastSoundTime = triggerTime;
+            } catch (e) {
+                console.warn("Audio trigger prevented:", e);
+            }
+        }
     }
 
     // --- 輔助函式 ---
@@ -403,7 +422,9 @@
                 
                 // 音效
                 if (audioInitialized) {
-                    synth.triggerAttackRelease(this.powerUpType ? "C6" : "C5", "32n");
+                    try {
+                        synth.triggerAttackRelease(this.powerUpType ? "C6" : "C5", "32n");
+                    } catch(e) {}
                 }
             }
         }
@@ -593,7 +614,11 @@
     function gameOver() {
         gameActive = false;
         if(audioInitialized) {
-             metalSynth.triggerAttackRelease(100, 1);
+            // 確保 Game Over 音效在未來播放，避免與 Hit 音效衝突
+            try {
+                const now = Tone.now();
+                metalSynth.triggerAttackRelease(100, 1, now + 0.1);
+            } catch(e) {}
         }
         
         finalScoreEl.innerText = score;
@@ -683,8 +708,8 @@
                             powerUps.push(new PowerUp(enemy.x, enemy.y));
                         }
                         
-                        // 音效
-                        if(audioInitialized) metalSynth.triggerAttackRelease("16n");
+                        // 音效 (使用安全播放函數)
+                        playExplosionSound("16n");
                     }
                 }
             });
@@ -698,12 +723,16 @@
                 
                 if (player.shielded) {
                     player.shielded = false;
-                    audioInitialized && metalSynth.triggerAttackRelease(100, 0.5);
+                    playExplosionSound(100, 0.5);
                 } else {
                     lives--;
                     updateLivesUI();
-                    audioInitialized && metalSynth.triggerAttackRelease(50, 1);
-                    if (lives <= 0) gameOver();
+                    
+                    if (lives <= 0) {
+                        gameOver(); // 只觸發 Game Over 音效
+                    } else {
+                        playExplosionSound(50, 1); // 只觸發 Hit 音效
+                    }
                 }
             }
 
@@ -728,7 +757,11 @@
                     floatingTexts.push(new FloatingText(player.x, player.y, "WEAPON UP!", '#ff0', 30));
                 }
                 
-                if(audioInitialized) noiseSynth.triggerAttackRelease("C5", "8n");
+                if(audioInitialized) {
+                    try {
+                        noiseSynth.triggerAttackRelease("C5", "8n");
+                    } catch(e) {}
+                }
                 powerUps.splice(index, 1);
             }
             if (p.y > canvas.height + 50) powerUps.splice(index, 1);
